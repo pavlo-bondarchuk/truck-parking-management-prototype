@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TruckPark Pro – Multi-Location Parking Management</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #1e40af;
+      --primary-dark: #1e3a8a;
+      --accent: #3b82f6;
+      --free: #22c55e;
+      --free-dark: #16a34a;
+      --occupied: #ef4444;
+      --occupied-dark: #dc2626;
+      --selected: #f59e0b;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --lot-bg: #1c2433;
+      --lot-lane: #263041;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      background: rgba(255,255,255,.18);
+      border: 1.5px solid rgba(255,255,255,.35);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 20px; height: 20px; fill: white; }
+    .logo-name { display: flex; flex-direction: column; line-height: 1; }
+    .logo-name span:first-child { font-size: 1rem; font-weight: 800; letter-spacing: .02em; }
+    .logo-name span:last-child { font-size: .65rem; font-weight: 500; opacity: .7; letter-spacing: .06em; text-transform: uppercase; }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .btn-sync {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.28);
+      color: white;
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s;
+    }
+    .btn-sync:hover { background: rgba(255,255,255,.22); }
+    .btn-sync svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .header-badge {
+      font-size: .75rem;
+      font-weight: 600;
+      background: rgba(255,255,255,.18);
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: .04em;
+    }
+
+    /* ── App layout ── */
+    .app {
+      display: flex;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-hd {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-hd-title {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+    }
+    .location-list { flex: 1; overflow-y: auto; }
+    .loc-item {
+      padding: 13px 18px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      border-bottom: 1px solid var(--border);
+    }
+    .loc-item:last-child { border-bottom: none; }
+    .loc-item:hover { background: var(--bg); }
+    .loc-item.active { background: #eff6ff; border-left-color: var(--accent); }
+    .loc-name { font-size: .9rem; font-weight: 700; color: var(--text); }
+    .loc-addr { font-size: .78rem; color: var(--muted); }
+    .loc-row { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
+    .loc-avail {
+      font-size: .72rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: #dcfce7;
+      color: #16a34a;
+    }
+    .loc-avail.partial { background: #fef9c3; color: #a16207; }
+    .loc-avail.full { background: #fee2e2; color: #dc2626; }
+    .loc-total { font-size: .72rem; color: var(--muted); }
+
+    /* ── Main ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Location header */
+    .loc-header {
+      padding: 14px 22px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .loc-header-info {}
+    .loc-header-title { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+    .loc-header-addr { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+    .stats-bar { display: flex; gap: 20px; align-items: center; }
+    .stat { text-align: center; }
+    .stat-val { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+    .stat-val.s-free { color: var(--free-dark); }
+    .stat-val.s-occupied { color: var(--occupied-dark); }
+    .stat-val.s-total { color: var(--text); }
+    .stat-lbl { font-size: .7rem; color: var(--muted); margin-top: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-divider { width: 1px; height: 30px; background: var(--border); }
+
+    /* Filters */
+    .filters {
+      padding: 9px 22px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 5px 13px;
+      border-radius: 20px;
+      font-size: .8rem;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all .15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .filter-btn.f-free.active { background: var(--free); border-color: var(--free); color: white; }
+    .filter-btn.f-occ.active { background: var(--occupied); border-color: var(--occupied); color: white; }
+    .filters-sep { flex: 1; }
+    .legend { display: flex; gap: 13px; align-items: center; }
+    .leg-item { display: flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--muted); white-space: nowrap; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+    .leg-dot.ld-free { background: var(--free); }
+    .leg-dot.ld-occ { background: var(--occupied); }
+    .leg-dot.ld-sel { background: var(--selected); }
+
+    /* ── Content area ── */
+    .content { flex: 1; display: flex; overflow: hidden; }
+
+    /* Parking lot wrapper */
+    .lot-wrapper {
+      flex: 1;
+      overflow: auto;
+      padding: 22px;
+      background: #dde4ed;
+    }
+    .lot {
+      background: var(--lot-bg);
+      border-radius: 14px;
+      padding: 28px 24px;
+      min-width: fit-content;
+      box-shadow: 0 4px 24px rgba(0,0,0,.2);
+    }
+    .lot-section { margin-bottom: 36px; }
+    .lot-section:last-child { margin-bottom: 0; }
+    .lot-section-name {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: #64748b;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .spot-row-wrap { margin-bottom: 6px; }
+    .row-lbl {
+      font-size: .68rem;
+      font-weight: 700;
+      color: #556070;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .spot-row { display: flex; gap: 7px; flex-wrap: nowrap; }
+    .lane {
+      height: 28px;
+      background: var(--lot-lane);
+      border-radius: 4px;
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .lane::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      margin-top: -1px;
+      background: repeating-linear-gradient(90deg, #f59e0b 0, #f59e0b 20px, transparent 20px, transparent 38px);
+      opacity: .35;
+    }
+    .lane-lbl {
+      font-size: .65rem;
+      color: #4a5568;
+      font-weight: 600;
+      letter-spacing: .06em;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Spot ── */
+    .spot {
+      width: 70px;
+      height: 104px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .12s, box-shadow .12s, opacity .12s;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .spot::before, .spot::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(255,255,255,.08);
+    }
+    .spot::before { top: 0; }
+    .spot::after { bottom: 0; }
+    .spot.s-free { background: #152e1c; border-color: #22c55e; }
+    .spot.s-free:hover { background: #1a3d22; transform: scaleY(1.04); box-shadow: 0 0 0 3px rgba(34,197,94,.3); }
+    .spot.s-occupied { background: #2a1414; border-color: #ef4444; }
+    .spot.s-occupied:hover { background: #361a1a; transform: scaleY(1.04); box-shadow: 0 0 0 3px rgba(239,68,68,.28); }
+    .spot.s-selected { border-color: var(--selected) !important; box-shadow: 0 0 0 3px rgba(245,158,11,.45) !important; transform: scaleY(1.07) !important; z-index: 2; }
+    .spot.s-hidden { opacity: .25; pointer-events: none; }
+    .spot-id {
+      font-size: .72rem;
+      font-weight: 800;
+      color: rgba(255,255,255,.85);
+      letter-spacing: .04em;
+      z-index: 1;
+    }
+    .spot-vehicle {
+      width: 38px;
+      height: 22px;
+      z-index: 1;
+    }
+
+    /* ── Detail panel ── */
+    .detail-panel {
+      width: 294px;
+      flex-shrink: 0;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .detail-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+    }
+    .detail-empty svg { width: 52px; height: 52px; opacity: .25; }
+    .detail-empty p { font-size: .9rem; }
+    .detail-body { flex: 1; overflow-y: auto; }
+    .detail-sec { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+    .detail-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .82rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .detail-status.ds-free { background: #dcfce7; color: #16a34a; }
+    .detail-status.ds-occ { background: #fee2e2; color: #dc2626; }
+    .detail-status::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .detail-spot-id { font-size: 1.4rem; font-weight: 800; color: var(--text); line-height: 1; }
+    .detail-loc { font-size: .82rem; color: var(--muted); margin-top: 3px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .detail-field label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: block; margin-bottom: 2px; }
+    .detail-field span { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .detail-actions { padding: 18px 20px; }
+    .btn { width: 100%; padding: 10px 16px; border-radius: 8px; font-size: .9rem; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); margin-top: 8px; }
+    .btn-secondary:hover { background: var(--border); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Booking modal ── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.52);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--card);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 490px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+      transform: translateY(18px);
+      transition: transform .2s;
+      overflow: hidden;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .overlay.open .modal { transform: translateY(0); }
+    .modal-hd {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .modal-title { font-size: 1.05rem; font-weight: 800; }
+    .modal-x {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 4px 6px;
+      border-radius: 5px;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .modal-x:hover { background: var(--bg); color: var(--text); }
+    .modal-bd { padding: 22px; overflow-y: auto; }
+    .modal-spot-info {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .modal-spot-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      background: #dcfce7;
+      border: 2px solid var(--free);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--free-dark);
+      flex-shrink: 0;
+    }
+    .modal-spot-details { font-size: .85rem; }
+    .modal-spot-name { font-weight: 700; font-size: .95rem; }
+    .modal-spot-loc { color: var(--muted); margin-top: 2px; }
+    .form-group { margin-bottom: 15px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-label { display: block; font-size: .8rem; font-weight: 700; margin-bottom: 5px; color: var(--text); }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: .9rem;
+      color: var(--text);
+      background: white;
+      outline: none;
+      transition: border-color .15s;
+      font-family: inherit;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: #adb5c0; }
+    .modal-ft {
+      padding: 14px 22px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+    .modal-ft .btn { width: auto; padding: 9px 20px; }
+
+    /* ── CSV sync modal ── */
+    .sync-modal {
+      background: var(--card);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+      transform: translateY(18px);
+      transition: transform .2s;
+      overflow: hidden;
+    }
+    .overlay.open .sync-modal { transform: translateY(0); }
+    .sync-body { padding: 24px; }
+    .sync-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; }
+    .sync-sub { font-size: .85rem; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+    .sync-sub strong { color: var(--text); }
+    .sync-input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: .88rem;
+      color: var(--text);
+      background: white;
+      outline: none;
+      margin-bottom: 8px;
+      font-family: inherit;
+    }
+    .sync-input:focus { border-color: var(--accent); }
+    .sync-hint { font-size: .75rem; color: var(--muted); margin-bottom: 18px; }
+    .sync-actions { display: flex; gap: 8px; }
+    .sync-actions .btn { width: auto; flex: 1; }
+
+    /* ── Toast ── */
+    .toast-wrap {
+      position: fixed;
+      bottom: 22px;
+      right: 22px;
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: #1e293b;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 9px;
+      font-size: .85rem;
+      font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,.3);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 340px;
+      pointer-events: all;
+      animation: toastIn .22s ease;
+    }
+    .toast.t-success { background: #14532d; border-left: 4px solid #22c55e; }
+    .toast.t-error { background: #7f1d1d; border-left: 4px solid #ef4444; }
+    .toast.t-info { background: #1e3a8a; border-left: 4px solid #60a5fa; }
+    .toast.t-out { animation: toastOut .22s ease forwards; }
+    .toast-icon { font-size: 1rem; flex-shrink: 0; }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+    /* ── Mobile ── */
+    .mobile-loc-bar {
+      display: none;
+      padding: 10px 16px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .mobile-loc-select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: .9rem;
+      color: var(--text);
+      background: white;
+      font-family: inherit;
+    }
+    .mobile-drawer {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      z-index: 150;
+      max-height: 72vh;
+      overflow-y: auto;
+      box-shadow: 0 -6px 24px rgba(0,0,0,.18);
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(.32,.72,0,1);
+    }
+    .mobile-drawer.open { transform: translateY(0); }
+    .drawer-handle {
+      width: 38px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 12px auto 6px;
+    }
+    .drawer-close-btn {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 1.1rem;
+      padding: 4px 8px;
+      border-radius: 5px;
+    }
+    .drawer-close-btn:hover { background: var(--bg); }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .mobile-loc-bar { display: block; }
+      .detail-panel { display: none; }
+      .mobile-drawer { display: block; }
+      .legend { display: none; }
+      .loc-header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 640px) {
+      header { padding: 0 16px; }
+      .logo-name span:first-child { font-size: .9rem; }
+      .header-badge { display: none; }
+      .btn-sync span { display: none; }
+      .stats-bar { gap: 12px; }
+      .stat-val { font-size: 1.2rem; }
+      .lot-wrapper { padding: 14px; }
+      .lot { padding: 18px 14px; }
+      .spot { width: 58px; height: 88px; }
+      .spot-vehicle { width: 30px; height: 18px; }
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9 1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+      </svg>
+    </div>
+    <div class="logo-name">
+      <span>TruckPark Pro</span>
+      <span>Parking Management System</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="header-badge" id="sync-status">Demo Data</span>
+    <button class="btn-sync" id="open-sync-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+      <span>Sync CSV</span>
+    </button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-hd">
+      <div class="sidebar-hd-title">Parking Locations</div>
+    </div>
+    <div class="location-list" id="location-list"></div>
+  </aside>
+
+  <main class="main">
+    <div class="mobile-loc-bar">
+      <select class="mobile-loc-select" id="mobile-loc-select"></select>
+    </div>
+
+    <div class="loc-header">
+      <div class="loc-header-info">
+        <div class="loc-header-title" id="loc-title"></div>
+        <div class="loc-header-addr" id="loc-addr"></div>
+      </div>
+      <div class="stats-bar" id="stats-bar"></div>
+    </div>
+
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">All Spots</button>
+      <button class="filter-btn f-free" data-filter="free">Available</button>
+      <button class="filter-btn f-occ" data-filter="occupied">Occupied</button>
+      <span class="filters-sep"></span>
+      <div class="legend">
+        <span class="leg-item"><span class="leg-dot ld-free"></span>Available</span>
+        <span class="leg-item"><span class="leg-dot ld-occ"></span>Occupied</span>
+        <span class="leg-item"><span class="leg-dot ld-sel"></span>Selected</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="lot-wrapper">
+        <div class="lot" id="parking-lot"></div>
+      </div>
+
+      <div class="detail-panel" id="detail-panel">
+        <div class="detail-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+          <p>Select a parking spot<br>to view details</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Mobile detail drawer -->
+<div class="mobile-drawer" id="mobile-drawer">
+  <div class="drawer-handle"></div>
+  <button class="drawer-close-btn" id="drawer-close-btn">✕</button>
+  <div id="mobile-drawer-content"></div>
+</div>
+
+<!-- Booking modal -->
+<div class="overlay" id="booking-overlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title">Reserve Parking Spot</span>
+      <button class="modal-x" id="booking-modal-close">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="modal-spot-info">
+        <div class="modal-spot-icon" id="modal-spot-icon"></div>
+        <div class="modal-spot-details">
+          <div class="modal-spot-name" id="modal-spot-name"></div>
+          <div class="modal-spot-loc" id="modal-spot-loc"></div>
+        </div>
+      </div>
+      <form id="booking-form" autocomplete="off">
+        <div class="form-group">
+          <label class="form-label">Company / Carrier Name</label>
+          <input class="form-input" type="text" id="f-company" placeholder="e.g. Apex Freight LLC" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Driver Name</label>
+            <input class="form-input" type="text" id="f-driver" placeholder="First Last" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">License Plate</label>
+            <input class="form-input" type="text" id="f-plate" placeholder="e.g. CA-1234-AB" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Trailer / Unit No.</label>
+            <input class="form-input" type="text" id="f-trailer" placeholder="e.g. TRL-5521">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Duration (hours)</label>
+            <select class="form-select" id="f-duration">
+              <option value="1">1 hour</option>
+              <option value="2">2 hours</option>
+              <option value="4">4 hours</option>
+              <option value="8" selected>8 hours</option>
+              <option value="12">12 hours</option>
+              <option value="24">24 hours</option>
+              <option value="48">48 hours</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Additional Notes</label>
+          <input class="form-input" type="text" id="f-notes" placeholder="Cargo type, special requirements…">
+        </div>
+      </form>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-secondary" id="booking-cancel-btn" style="min-width:90px">Cancel</button>
+      <button class="btn btn-primary" id="booking-submit-btn" style="min-width:140px">Confirm Booking</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV sync modal -->
+<div class="overlay" id="sync-overlay">
+  <div class="sync-modal">
+    <div class="modal-hd">
+      <span class="modal-title">Google Sheets CSV Sync</span>
+      <button class="modal-x" id="sync-modal-close">✕</button>
+    </div>
+    <div class="sync-body">
+      <div class="sync-sub">
+        Paste a <strong>published Google Sheets CSV link</strong> to update occupancy status for all locations. The sheet must have columns: <strong>park</strong>, <strong>spot</strong>, <strong>status</strong> (1 = occupied, 0 = available).
+      </div>
+      <input class="sync-input" type="url" id="csv-url-input" placeholder="https://docs.google.com/spreadsheets/d/…/pub?output=csv">
+      <div class="sync-hint">
+        In Google Sheets: File → Share → Publish to web → CSV format → Copy link.
+      </div>
+      <div class="sync-actions">
+        <button class="btn btn-secondary" id="sync-cancel-btn">Cancel</button>
+        <button class="btn btn-primary" id="sync-fetch-btn">Fetch &amp; Sync</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+  const LOCATIONS = [
+    {
+      id: 'north-freight-yard',
+      name: 'North Freight Yard',
+      address: '1200 Industrial Blvd, North District',
+      sections: [
+        { name: 'Section A', rows: mkRows(['A','B'], 8) },
+        { name: 'Section B', rows: mkRows(['C','D'], 8) }
+      ]
+    },
+    {
+      id: 'south-industrial-depot',
+      name: 'South Industrial Depot',
+      address: '450 Harbor Road, South District',
+      sections: [
+        { name: 'Main Section', rows: mkRows(['A','B','C'], 8) }
+      ]
+    },
+    {
+      id: 'east-logistics-hub',
+      name: 'East Logistics Hub',
+      address: '300 Commerce Way, East District',
+      sections: [
+        { name: 'North Wing', rows: mkRows(['A','B'], 5) },
+        { name: 'South Wing', rows: mkRows(['C','D'], 5) }
+      ]
+    },
+    {
+      id: 'west-distribution-center',
+      name: 'West Distribution Center',
+      address: '800 Highway 12, West District',
+      sections: [
+        { name: 'Section Alpha', rows: mkRows(['A','B'], 7) },
+        { name: 'Section Beta',  rows: mkRows(['C','D'], 7) }
+      ]
+    }
+  ];
+
+  function mkRows(ids, n) {
+    return ids.map(id => ({
+      id,
+      spots: Array.from({ length: n }, (_, i) => id + String(i + 1).padStart(2, '0'))
+    }));
+  }
+
+  function buildDemoOccupancy() {
+    const occ = {};
+    LOCATIONS.forEach((loc, li) => {
+      occ[loc.name] = {};
+      loc.sections.forEach(sec => {
+        sec.rows.forEach((row, ri) => {
+          row.spots.forEach((spot, si) => {
+            occ[loc.name][spot] = ((li * 13 + ri * 7 + si * 3) % 10 < 4) ? 1 : 0;
+          });
+        });
+      });
+    });
+    return occ;
+  }
+
+  const state = {
+    locationId: LOCATIONS[0].id,
+    occupancy: buildDemoOccupancy(),
+    selectedSpot: null,
+    filter: 'all',
+    csvUrl: ''
+  };
+
+  function currentLoc() {
+    return LOCATIONS.find(l => l.id === state.locationId);
+  }
+
+  function spotStatus(locName, spotId) {
+    const occ = state.occupancy[locName];
+    return occ && occ[spotId] === 1 ? 'occupied' : 'free';
+  }
+
+  function allSpots(loc) {
+    const result = [];
+    loc.sections.forEach(sec => sec.rows.forEach(row => row.spots.forEach(s => result.push(s))));
+    return result;
+  }
+
+  function calcStats(loc) {
+    const spots = allSpots(loc);
+    const total = spots.length;
+    const occupied = spots.filter(s => spotStatus(loc.name, s) === 'occupied').length;
+    return { total, occupied, free: total - occupied };
+  }
+
+  /* ── SVG truck icon (top-down view) ── */
+  function truckSVG(status) {
+    const cabFill = status === 'occupied' ? 'rgba(239,68,68,.55)' : 'rgba(34,197,94,.45)';
+    const bodyFill = status === 'occupied' ? 'rgba(239,68,68,.3)' : 'rgba(34,197,94,.22)';
+    const stroke = status === 'occupied' ? 'rgba(239,68,68,.7)' : 'rgba(34,197,94,.7)';
+    return `<svg class="spot-vehicle" viewBox="0 0 38 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="3" width="36" height="16" rx="3" fill="${bodyFill}" stroke="${stroke}" stroke-width="1.2"/>
+      <rect x="1" y="3" width="10" height="16" rx="2" fill="${cabFill}" stroke="${stroke}" stroke-width="1.2"/>
+      <rect x="2.5" y="5.5" width="6" height="5" rx="1" fill="rgba(255,255,255,.18)"/>
+      <rect x="31" y="7" width="4" height="8" rx="1" fill="rgba(255,255,255,.1)" stroke="${stroke}" stroke-width=".8"/>
+    </svg>`;
+  }
+
+  /* ── Render ── */
+  function renderSidebar() {
+    const list = document.getElementById('location-list');
+    const msel = document.getElementById('mobile-loc-select');
+    list.innerHTML = '';
+    msel.innerHTML = '';
+    LOCATIONS.forEach(loc => {
+      const s = calcStats(loc);
+      const pct = s.total > 0 ? s.occupied / s.total : 0;
+      const cls = pct >= 1 ? 'full' : pct >= 0.7 ? 'partial' : '';
+      const active = loc.id === state.locationId ? ' active' : '';
+      list.insertAdjacentHTML('beforeend', `
+        <div class="loc-item${active}" data-loc="${loc.id}">
+          <div class="loc-name">${loc.name}</div>
+          <div class="loc-addr">${loc.address}</div>
+          <div class="loc-row">
+            <span class="loc-avail ${cls}">${s.free} available</span>
+            <span class="loc-total">${s.total} total</span>
+          </div>
+        </div>`);
+      const opt = document.createElement('option');
+      opt.value = loc.id;
+      opt.textContent = loc.name;
+      if (loc.id === state.locationId) opt.selected = true;
+      msel.appendChild(opt);
+    });
+    list.querySelectorAll('.loc-item').forEach(el => {
+      el.addEventListener('click', () => selectLocation(el.dataset.loc));
+    });
+    msel.addEventListener('change', () => selectLocation(msel.value));
+  }
+
+  function renderHeader() {
+    const loc = currentLoc();
+    document.getElementById('loc-title').textContent = loc.name;
+    document.getElementById('loc-addr').textContent = loc.address;
+    const s = calcStats(loc);
+    document.getElementById('stats-bar').innerHTML = `
+      <div class="stat"><div class="stat-val s-free">${s.free}</div><div class="stat-lbl">Available</div></div>
+      <div class="stat-divider"></div>
+      <div class="stat"><div class="stat-val s-occupied">${s.occupied}</div><div class="stat-lbl">Occupied</div></div>
+      <div class="stat-divider"></div>
+      <div class="stat"><div class="stat-val s-total">${s.total}</div><div class="stat-lbl">Total</div></div>`;
+  }
+
+  function renderLot() {
+    const loc = currentLoc();
+    const lot = document.getElementById('parking-lot');
+    lot.innerHTML = '';
+    loc.sections.forEach(sec => {
+      const secEl = document.createElement('div');
+      secEl.className = 'lot-section';
+      secEl.innerHTML = `<div class="lot-section-name">${sec.name}</div>`;
+      sec.rows.forEach((row, ri) => {
+        const rowWrap = document.createElement('div');
+        rowWrap.className = 'spot-row-wrap';
+        rowWrap.innerHTML = `<div class="row-lbl">Row ${row.id}</div>`;
+        const rowEl = document.createElement('div');
+        rowEl.className = 'spot-row';
+        row.spots.forEach(spotId => {
+          const status = spotStatus(loc.name, spotId);
+          const isSelected = state.selectedSpot && state.selectedSpot.id === spotId && state.selectedSpot.loc === loc.name;
+          let cls = `spot s-${status}`;
+          if (isSelected) cls += ' s-selected';
+          if (state.filter !== 'all' && state.filter !== status) cls += ' s-hidden';
+          rowEl.insertAdjacentHTML('beforeend', `
+            <div class="${cls}" data-spot="${spotId}" data-loc="${loc.name}" title="Spot ${spotId} — ${status}">
+              ${truckSVG(status)}
+              <span class="spot-id">${spotId}</span>
+            </div>`);
+        });
+        rowWrap.appendChild(rowEl);
+        if (ri < sec.rows.length - 1) {
+          rowWrap.insertAdjacentHTML('beforeend', `<div class="lane"><span class="lane-lbl">DRIVE LANE</span></div>`);
+        }
+        secEl.appendChild(rowWrap);
+      });
+      lot.appendChild(secEl);
+    });
+    lot.querySelectorAll('.spot').forEach(el => {
+      el.addEventListener('click', () => selectSpot(el.dataset.loc, el.dataset.spot));
+    });
+  }
+
+  function buildDetailHTML(locName, spotId, actions) {
+    const status = spotStatus(locName, spotId);
+    const loc = LOCATIONS.find(l => l.name === locName);
+    let row = '—', section = '—';
+    if (loc) {
+      loc.sections.forEach(sec => {
+        sec.rows.forEach(r => {
+          if (r.spots.includes(spotId)) { row = r.id; section = sec.name; }
+        });
+      });
+    }
+    const statusLabel = status === 'free' ? 'Available' : 'Occupied';
+    const statusCls = status === 'free' ? 'ds-free' : 'ds-occ';
+    const btnLabel = status === 'free' ? 'Reserve This Spot' : 'View Booking Details';
+    const actionsHTML = actions ? `
+      <div class="detail-actions">
+        <button class="btn btn-primary" id="reserve-btn" ${status !== 'free' ? 'disabled' : ''}>${btnLabel}</button>
+        <button class="btn btn-secondary" id="deselect-btn">Deselect</button>
+      </div>` : '';
+    return `
+      <div class="detail-sec">
+        <div class="detail-status ${statusCls}">${statusLabel}</div>
+        <div class="detail-spot-id">${spotId}</div>
+        <div class="detail-loc">${locName}</div>
+      </div>
+      <div class="detail-sec">
+        <div class="detail-grid">
+          <div class="detail-field"><label>Row</label><span>${row}</span></div>
+          <div class="detail-field"><label>Section</label><span>${section}</span></div>
+          <div class="detail-field"><label>Type</label><span>Standard</span></div>
+          <div class="detail-field"><label>Clearance</label><span>4.8 m</span></div>
+          <div class="detail-field"><label>Length</label><span>Up to 22 m</span></div>
+          <div class="detail-field"><label>Width</label><span>4.0 m</span></div>
+        </div>
+      </div>
+      ${actionsHTML}`;
+  }
+
+  function renderDetailPanel() {
+    const panel = document.getElementById('detail-panel');
+    if (!state.selectedSpot) {
+      panel.innerHTML = `
+        <div class="detail-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+          <p>Select a parking spot<br>to view details</p>
+        </div>`;
+      return;
+    }
+    const { loc, id } = state.selectedSpot;
+    panel.innerHTML = `<div class="detail-body">${buildDetailHTML(loc, id, true)}</div>`;
+    document.getElementById('reserve-btn').addEventListener('click', openBookingModal);
+    document.getElementById('deselect-btn').addEventListener('click', deselectSpot);
+  }
+
+  function renderMobileDrawer() {
+    const drawer = document.getElementById('mobile-drawer');
+    const content = document.getElementById('mobile-drawer-content');
+    if (!state.selectedSpot) {
+      drawer.classList.remove('open');
+      return;
+    }
+    const { loc, id } = state.selectedSpot;
+    content.innerHTML = buildDetailHTML(loc, id, true);
+    drawer.classList.add('open');
+    const reserveBtn = document.getElementById('reserve-btn');
+    const deselectBtn = document.getElementById('deselect-btn');
+    if (reserveBtn) reserveBtn.addEventListener('click', openBookingModal);
+    if (deselectBtn) deselectBtn.addEventListener('click', deselectSpot);
+  }
+
+  function render() {
+    renderSidebar();
+    renderHeader();
+    renderLot();
+    renderDetailPanel();
+    renderMobileDrawer();
+  }
+
+  /* ── Actions ── */
+  function selectLocation(id) {
+    state.locationId = id;
+    state.selectedSpot = null;
+    render();
+  }
+
+  function selectSpot(locName, spotId) {
+    if (state.selectedSpot && state.selectedSpot.id === spotId && state.selectedSpot.loc === locName) {
+      deselectSpot();
+      return;
+    }
+    state.selectedSpot = { loc: locName, id: spotId };
+    renderLot();
+    renderDetailPanel();
+    renderMobileDrawer();
+    renderSidebar();
+  }
+
+  function deselectSpot() {
+    state.selectedSpot = null;
+    renderLot();
+    renderDetailPanel();
+    renderMobileDrawer();
+  }
+
+  /* ── Filter ── */
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.filter = btn.dataset.filter;
+      renderLot();
+    });
+  });
+
+  /* ── Booking modal ── */
+  function openBookingModal() {
+    if (!state.selectedSpot) return;
+    const { loc, id } = state.selectedSpot;
+    document.getElementById('modal-spot-icon').textContent = id;
+    document.getElementById('modal-spot-name').textContent = `Spot ${id}`;
+    document.getElementById('modal-spot-loc').textContent = loc;
+    document.getElementById('booking-form').reset();
+    document.getElementById('booking-overlay').classList.add('open');
+  }
+
+  function closeBookingModal() {
+    document.getElementById('booking-overlay').classList.remove('open');
+  }
+
+  document.getElementById('booking-modal-close').addEventListener('click', closeBookingModal);
+  document.getElementById('booking-cancel-btn').addEventListener('click', closeBookingModal);
+  document.getElementById('booking-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('booking-overlay')) closeBookingModal();
+  });
+
+  document.getElementById('booking-submit-btn').addEventListener('click', () => {
+    const company = document.getElementById('f-company').value.trim();
+    const driver = document.getElementById('f-driver').value.trim();
+    const plate = document.getElementById('f-plate').value.trim();
+    if (!company || !driver || !plate) {
+      showToast('Please fill in all required fields.', 'error');
+      return;
+    }
+    if (!state.selectedSpot) return;
+    const { loc, id } = state.selectedSpot;
+    state.occupancy[loc][id] = 1;
+    closeBookingModal();
+    showToast(`Spot ${id} at ${loc} successfully reserved.`, 'success');
+    state.selectedSpot = null;
+    render();
+  });
+
+  /* ── CSV sync modal ── */
+  document.getElementById('open-sync-btn').addEventListener('click', () => {
+    document.getElementById('csv-url-input').value = state.csvUrl;
+    document.getElementById('sync-overlay').classList.add('open');
+  });
+
+  function closeSyncModal() {
+    document.getElementById('sync-overlay').classList.remove('open');
+  }
+
+  document.getElementById('sync-modal-close').addEventListener('click', closeSyncModal);
+  document.getElementById('sync-cancel-btn').addEventListener('click', closeSyncModal);
+  document.getElementById('sync-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('sync-overlay')) closeSyncModal();
+  });
+
+  document.getElementById('sync-fetch-btn').addEventListener('click', async () => {
+    const url = document.getElementById('csv-url-input').value.trim();
+    if (!url) { showToast('Please enter a CSV URL.', 'error'); return; }
+    const btn = document.getElementById('sync-fetch-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> Fetching…';
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const updated = parseAndApplyCSV(text);
+      state.csvUrl = url;
+      document.getElementById('sync-status').textContent = 'Live Data';
+      closeSyncModal();
+      showToast(`Synced ${updated} spot(s) from CSV.`, 'success');
+      render();
+    } catch (err) {
+      showToast(`Sync failed: ${err.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Fetch & Sync';
+    }
+  });
+
+  function parseAndApplyCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return 0;
+    const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const pi = header.indexOf('park');
+    const si = header.indexOf('spot');
+    const sti = header.indexOf('status');
+    if (pi < 0 || si < 0 || sti < 0) throw new Error('CSV must have columns: park, spot, status');
+    let count = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',');
+      if (cols.length < 3) continue;
+      const park = cols[pi].trim();
+      const spot = cols[si].trim();
+      const status = parseInt(cols[sti].trim(), 10);
+      if (!state.occupancy[park]) state.occupancy[park] = {};
+      state.occupancy[park][spot] = isNaN(status) ? 0 : (status ? 1 : 0);
+      count++;
+    }
+    return count;
+  }
+
+  /* ── Mobile drawer close ── */
+  document.getElementById('drawer-close-btn').addEventListener('click', deselectSpot);
+
+  /* ── Toast ── */
+  function showToast(msg, type) {
+    const icons = { success: '✓', error: '✕', info: 'ℹ' };
+    const wrap = document.getElementById('toast-wrap');
+    const t = document.createElement('div');
+    t.className = `toast t-${type || 'info'}`;
+    t.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span>${msg}`;
+    wrap.appendChild(t);
+    setTimeout(() => {
+      t.classList.add('t-out');
+      setTimeout(() => t.remove(), 230);
+    }, 3800);
+  }
+
+  /* ── Init ── */
+  render();
+</script>
+</body>
+</html>
